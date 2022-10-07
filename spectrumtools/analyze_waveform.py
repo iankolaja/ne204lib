@@ -5,6 +5,7 @@ import scipy.signal
 import matplotlib.pyplot as plt
 from .generate_trapezoid_filter import generate_trapezoid_filter
 
+
 def plot_pulses(raw_data, num_pulses):
     plt.figure()
     for i in range(num_pulses):
@@ -21,7 +22,12 @@ def take_rolling_average(waveform, width):
     return smooth_waveform
 
 
-def fit_tau(waveform, max_location):
+def find_peak(waveform, prominence_val=30):
+    max_location = scipy.signal.find_peaks(waveform, prominence=prominence_val)[0][0]
+    return max_location
+
+
+def fit_tau(waveform):
     max_location = find_peak(waveform)
     n = np.arange(0, len(waveform))
     decay_indices = n[max_location:-1]
@@ -35,28 +41,20 @@ def fit_tau(waveform, max_location):
     return tau
 
 
-def find_peak(waveform, prominence_val=30):
-    max_location = scipy.signal.find_peaks(waveform, prominence=prominence_val)[0][0]
-    return max_location
-
-
-def shape_waveform(waveform, pulse_filter, plot_filtered=False):
-    # Smooth out the waveform
-    waveform = take_rolling_average(waveform, 30)
-    max_location = find_peak(waveform)
-
+def shape_waveform(waveform, pulse_filter, k, pre_trigger, plot_filtered=False):
+    peak_location = pre_trigger + k
     sample_length = len(pulse_filter)
 
     # Convolve the filter with the decay part of the waveform
-    decay = waveform[range(max_location, max_location + sample_length)]
+    decay = waveform[range(peak_location, peak_location + sample_length)]
     filtered = np.convolve(decay, pulse_filter)[:sample_length]
 
     # Integrate the trapezoid
-    integral = integrate.simps(filtered)
+    amplitude = np.max(filtered)
 
     if plot_filtered:
         plt.plot(filtered)
         plt.legend()
         plt.show()
 
-    return integral, filtered
+    return amplitude, filtered
