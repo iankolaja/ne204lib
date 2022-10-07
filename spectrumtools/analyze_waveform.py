@@ -40,20 +40,16 @@ def find_peak(waveform, prominence_val=30):
     return max_location
 
 
-def shape_waveform(waveform, k, l, tau, plot_filtered=False):
+def shape_waveform(waveform, pulse_filter, plot_filtered=False):
     # Smooth out the waveform
     waveform = take_rolling_average(waveform, 30)
     max_location = find_peak(waveform)
 
-    sample_length = k + l
-    t = np.arange(0, sample_length)
-
-    # Generate filter for given time parameters
-    trap_filter = generate_trapezoid_filter(t, tau, k, l)
+    sample_length = len(pulse_filter)
 
     # Convolve the filter with the decay part of the waveform
     decay = waveform[range(max_location, max_location + sample_length)]
-    filtered = np.convolve(decay, trap_filter)[:sample_length]
+    filtered = np.convolve(decay, pulse_filter)[:sample_length]
 
     # Integrate the trapezoid
     integral = integrate.simps(filtered)
