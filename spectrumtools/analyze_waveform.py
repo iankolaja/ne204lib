@@ -45,7 +45,7 @@ def shape_waveform(waveform, k, l, tau, plot_filtered=False):
     waveform = take_rolling_average(waveform, 30)
     max_location = find_peak(waveform)
 
-    sample_length = k + lc
+    sample_length = k + l
     t = np.arange(0, sample_length)
 
     # Generate filter for given time parameters
