@@ -13,7 +13,8 @@ def _moving_average(t, l):
             np.zeros(len(t)-np.argmin(np.abs(t-l))-1)))
 
 
-def generate_trapezoid_filter(t, tau, k, l):
+def generate_trapezoid_filter(tau, k, l):
+    t = np.arange(0, k+l)
     rising_ramp = _truncated_ramp(t,k)
     first_average = _moving_average(t,l)
     second_average = np.roll(_truncated_ramp(t, k), l)
