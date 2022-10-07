@@ -8,21 +8,16 @@ import h5py
 
 
 class Spectrum:
-    def __init__(self, input_file_path=None, num_channels=8040):
-        self.counts = np.zeros(num_channels)
-        self.channels = np.arange(1,num_channels+1)
+    def __init__(self, counts):
+        self.num_channels = len(counts)
+        self.counts = counts
+        self.channels = np.arange(1, self.num_channels+1)
         self.energies = self.channels
-        self.num_channels = num_channels
         self.peaks = []
         self.calibrated = False
         self.calibration_coeffs = [1.0]
-        if type(input_file_path) == str:
-            with open(input_file_path, 'r') as f:
-                for line in f:
-                    line = line.split(',')
-                    time = line[0]
-                    channel = int(line[1])
-                    self.counts[channel] += 1
+        self.calibration_channels = [0]
+        self.calibration_energies = [0]
 
     def show_histogram(self, title):
         if self.calibrated:
@@ -57,7 +52,7 @@ class Spectrum:
 
     def find_peaks(self):
         self.peaks = []
-        peaks, props = sig.find_peaks(self.counts, prominence = 200)
+        peaks, props = sig.find_peaks(self.counts, prominence = 150)
         widths, width_heights, left_ips, right_ips = sig.peak_widths(self.counts, peaks)
         for i in range(len(peaks)):
             centroid = peaks[i]
@@ -66,31 +61,28 @@ class Spectrum:
             self.peaks += [Peak(centroid, int(self.counts[centroid]), left_th, right_th)]
         return self.peaks
 
-    def calibrate(self, source_list, auto_calibrate = True):
-        gamma_energies = []
-        gamma_intensities = []
-        for source in source_list:
-            for i in range(len(source.energies)):
-                gamma_energies += [source.energies[i]]
-                gamma_intensities += [source.activity * source.intensities[i]]
-        source_data = np.transpose(np.array((gamma_energies, gamma_intensities)))
-        source_data = source_data[source_data[:, 0].argsort()]
-        calibration_channels = []
-        calibration_energies = []
+    def calibrate(self, gamma_energies, known_channels = [], auto_calibrate = False, reset_calibration = False):
+        if not reset_calibration:
+            self.calibration_energies = [0]
+            self.calibration_channels = [0]
         if auto_calibrate:
             self.find_peaks()
-            for i in range(len( source_data[:,0] ) ):
-                calibration_channels += [self.peaks[i].centroid]
-                calibration_energies += [source_data[i,0]]
+            for i in range(len( gamma_energies ) ):
+                self.calibration_channels += [self.peaks[i].centroid]
+                self.calibration_energies += [gamma_energies[i]]
+        elif len(known_channels) > 0:
+            for i in range(len( gamma_energies ) ):
+                self.calibration_channels += [known_channels[i]]
+                self.calibration_energies += [gamma_energies[i]]
         else:
             print("Opening plot for manual calibration...")
             self.show_histogram("Calibration")
-            for i in range(len(source_data[:, 0])):
-                current_energy = [source_data[i,0]]
-                calibration_energies += [current_energy]
+            for i in range(len(gamma_energies)):
+                current_energy = gamma_energies[i]
+                self.calibration_energies += [current_energy]
                 prompt = "What channel do you think the {0} keV gamma is in? ".format(current_energy)
-                calibration_channels += [int(input(prompt))]
-        coefficients = np.polyfit(calibration_channels, calibration_energies, 2)
+                self.calibration_channels += [int(input(prompt))]
+        coefficients = np.polyfit(self.calibration_channels, self.calibration_energies, 2)
         self.energies = np.polyval(coefficients, self.channels)
         print("Energy(c) = {0}c^2 + {1}c + {2}".format( *np.round(coefficients,4) ) )
         self.calibrated = True
@@ -115,4 +107,3 @@ class Source:
         self.activity = activity
         self.energies = energies
         self.intensities = intensities
-
