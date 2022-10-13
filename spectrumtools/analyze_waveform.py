@@ -3,14 +3,26 @@ import numpy as np
 from scipy.optimize import curve_fit
 import scipy.signal
 import matplotlib.pyplot as plt
+from bokeh.io import show, output_file
+from bokeh.plotting import figure
+from bokeh.models import HoverTool
 from .generate_trapezoid_filter import generate_trapezoid_filter
 
 
-def plot_pulses(raw_data, num_pulses):
-    plt.figure()
+def plot_pulses(raw_data, num_pulses, tau=None):
+    TOOLTIPS = [
+        ("(x,y)", "($x, $y)"),
+    ]
+    x_max = len(raw_data[0])
+    p = figure(background_fill_color="#fafafa",
+               y_axis_type="log", width=1200, height=700,
+               x_range=(0, x_max),
+               tooltips=TOOLTIPS, tools = "pan,wheel_zoom,box_zoom,reset")
+    p.yaxis.axis_label = 'Counts'
+    x_range = np.arange(x_max)
     for i in range(num_pulses):
-        plt.plot(raw_data[i])
-    plt.show()
+        p.line(x_range, raw_data[i])
+    show(p)
 
 
 def exponential(t, a, tau, c):
@@ -27,8 +39,9 @@ def find_peak(waveform, prominence_val=30):
     return max_location
 
 
-def fit_tau(waveform):
-    max_location = find_peak(waveform)
+def fit_tau(waveform, pre_sample_length):
+    #max_location = find_peak(waveform)
+    max_location = pre_sample_length
     n = np.arange(0, len(waveform))
     decay_indices = n[max_location:-1]
     decay_indices_norm = (decay_indices - decay_indices[0]) / (decay_indices[-1] - decay_indices[0])
@@ -50,7 +63,7 @@ def shape_waveform(waveform, pulse_filter, k, pre_trigger, plot_filtered=False):
     filtered = np.convolve(decay, pulse_filter)[:sample_length]
 
     # Integrate the trapezoid
-    amplitude = np.max(filtered)
+    amplitude = np.sum(filtered)
 
     if plot_filtered:
         plt.plot(filtered)
