@@ -57,7 +57,7 @@ class Spectrum:
         new.counts -= other.counts
         return new
 
-    def find_peaks(self, auto_prominence, peak_min_distance=40):
+    def find_peaks(self, auto_prominence, peak_min_distance=20):
         self.peaks = []
         peaks, props = sig.find_peaks(self.counts, prominence = auto_prominence, distance = peak_min_distance)
         widths, width_heights, left_ips, right_ips = sig.peak_widths(self.counts, peaks, rel_height=0.5)
