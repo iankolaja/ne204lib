@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 from bokeh.io import show, output_file
 from bokeh.plotting import figure
 from bokeh.models import HoverTool
-from .generate_trapezoid_filter import generate_trapezoid_filter
 
 
 def plot_pulses(raw_data, num_pulses, tau=None):
@@ -39,18 +38,25 @@ def find_peak(waveform, prominence_val=30):
     return max_location
 
 
-def fit_tau(waveform, pre_sample_length):
+def fit_tau(waveform, pre_sample_length, fit_length = 1000, show_plot=False):
     #max_location = find_peak(waveform)
+    waveform = take_rolling_average(waveform, 20)
     max_location = pre_sample_length
     n = np.arange(0, len(waveform))
-    decay_indices = n[max_location:-1]
+    decay_indices = n[max_location:max_location+fit_length]
     decay_indices_norm = (decay_indices - decay_indices[0]) / (decay_indices[-1] - decay_indices[0])
     c_0 = waveform[-1]
     tau_0 = 1
     a_0 = (waveform[0] - waveform[-1])
     popt, pcov = curve_fit(exponential, decay_indices_norm, waveform[decay_indices], p0=(a_0, tau_0, c_0))
-    a, tau, c = popt
-    tau *= np.max(n)
+    a, tau_norm, c = popt
+    tau = tau_norm * np.max(n)
+    if show_plot:
+        plt.figure()
+        fit_vals = exponential(decay_indices_norm, a, tau_norm, c)
+        plt.plot(waveform)
+        plt.plot(decay_indices, fit_vals)
+        plt.show()
     return tau
 
 
