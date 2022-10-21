@@ -14,7 +14,7 @@ def plot_pulses(raw_data, num_pulses, tau=None):
     ]
     x_max = len(raw_data[0])
     p = figure(background_fill_color="#fafafa",
-               y_axis_type="log", width=1200, height=700,
+               width=1200, height=700,
                x_range=(0, x_max),
                tooltips=TOOLTIPS, tools = "pan,wheel_zoom,box_zoom,reset")
     p.yaxis.axis_label = 'Counts'
