@@ -24,8 +24,8 @@ def plot_pulses(raw_data, num_pulses, tau=None):
     show(p)
 
 
-def exponential(t, a, tau, c):
-    return a * np.exp(-t / tau) + c
+def exponential(t, a, tau):
+    return a * np.exp(-t / tau)
 
 
 def take_rolling_average(waveform, width):
@@ -33,47 +33,20 @@ def take_rolling_average(waveform, width):
     return smooth_waveform
 
 
-def find_peak(waveform, prominence_val=30):
-    max_location = scipy.signal.find_peaks(waveform, prominence=prominence_val)[0][0]
-    return max_location
-
-
 def fit_tau(waveform, pre_sample_length, fit_length = 1000, show_plot=False):
-    #max_location = find_peak(waveform)
-    waveform = take_rolling_average(waveform, 20)
-    max_location = pre_sample_length
-    n = np.arange(0, len(waveform))
-    decay_indices = n[max_location:max_location+fit_length]
-    decay_indices_norm = (decay_indices - decay_indices[0]) / (decay_indices[-1] - decay_indices[0])
-    c_0 = waveform[-1]
-    tau_0 = 1
-    a_0 = (waveform[0] - waveform[-1])
-    popt, pcov = curve_fit(exponential, decay_indices_norm, waveform[decay_indices], p0=(a_0, tau_0, c_0))
-    a, tau_norm, c = popt
-    tau = tau_norm * np.max(n)
+    smooth_waveform = take_rolling_average(waveform, 20)
+    decay_waveform = smooth_waveform[pre_sample_length:pre_sample_length+fit_length]
+    x = np.arange(0, fit_length)
+    x_norm = (x - x[0]) / (x[-1] - x[0])
+    tau_0 = 10000/fit_length
+    a_0 = decay_waveform[0]
+    popt, pcov = curve_fit(exponential, x_norm, decay_waveform, p0=(a_0, tau_0))
+    a, tau_norm = popt
+    tau = tau_norm * fit_length
     if show_plot:
         plt.figure()
-        fit_vals = exponential(decay_indices_norm, a, tau_norm, c)
+        fit_vals = exponential(x_norm, a, tau_norm)
         plt.plot(waveform)
-        plt.plot(decay_indices, fit_vals)
+        plt.plot(x+pre_sample_length, fit_vals)
         plt.show()
     return tau
-
-
-def shape_waveform(waveform, pulse_filter, k, pre_trigger, plot_filtered=False):
-    peak_location = pre_trigger + k
-    sample_length = len(pulse_filter)
-
-    # Convolve the filter with the decay part of the waveform
-    decay = waveform[range(peak_location, peak_location + sample_length)]
-    filtered = np.convolve(decay, pulse_filter)[:sample_length]
-
-    # Integrate the trapezoid
-    amplitude = np.sum(filtered)
-
-    if plot_filtered:
-        plt.plot(filtered)
-        plt.legend()
-        plt.show()
-
-    return amplitude, filtered
