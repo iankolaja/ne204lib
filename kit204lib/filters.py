@@ -21,7 +21,7 @@ def jordanov_filter(peaking_time, gap_time, tau, waveform,
     noise_average = np.mean(waveform[0:pre_trigger_delay])
 
     averaged_waveform = copy.copy(waveform)
-    averaged_waveform[:l + k] = noise_average
+    averaged_waveform[:l + k] = 0
 
     d_n = averaged_waveform[k + l:]
     d_nk = averaged_waveform[l:-k]
@@ -32,7 +32,7 @@ def jordanov_filter(peaking_time, gap_time, tau, waveform,
     filter_shape[0] = 0
 
     s = np.cumsum( np.cumsum(filter_shape) + filter_shape*M )
-    peak_val = np.max(s)
+    peak_val = np.mean(s[k:l])
     return s, filter_shape, peak_val
 
 
