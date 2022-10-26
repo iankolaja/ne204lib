@@ -1,11 +1,9 @@
-import scipy.integrate as integrate
 import numpy as np
 from scipy.optimize import curve_fit
-import scipy.signal
 import matplotlib.pyplot as plt
 from bokeh.io import show, output_file
 from bokeh.plotting import figure
-from bokeh.models import HoverTool
+import time
 
 
 def plot_pulses(raw_data, num_pulses, tau=None):
@@ -50,3 +48,27 @@ def fit_tau(waveform, pre_sample_length, fit_length = 1000, show_plot=False):
         plt.plot(x+pre_sample_length, fit_vals)
         plt.show()
     return tau
+
+def process_all_pulses(pulse_data, peaking_time, gap_time, tau, trap_filter, num_to_plot = 0):
+    num_pulses = len(pulse_data)
+    trapezoid_heights = np.zeros(num_pulses)
+    start_time = time.time()
+
+    if num_to_plot > 0:
+        plt.figure()
+        plt.xlim(0, 4000)
+        for i in range(num_pulses):
+            summed_pulse, filtered, trapezoid_heights[i] = trap_filter(peaking_time, gap_time, tau, pulse_data[i])
+            if i < 20:
+                plt.plot(summed_pulse)
+            elif i == 21:
+                plt.show()
+            if i % 10000 == 0 and i != 0:
+                run_time = time.time() - start_time
+                print("{0} waveforms analyzed. {1}s elapsed.".format(i, run_time))
+    else:
+        for i in range(num_pulses):
+            _, _, trapezoid_heights[i] = trap_filter(peaking_time, gap_time, tau, pulse_data[i])
+    run_time = time.time() - start_time
+    print("{0} waveforms analyzed. {1}s elapsed.".format(i, run_time))
+    return trapezoid_heights
