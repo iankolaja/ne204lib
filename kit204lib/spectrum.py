@@ -4,9 +4,11 @@ from bokeh.plotting import figure
 import matplotlib.pyplot as plt
 from bokeh.models import HoverTool
 import scipy.signal as sig
+from scipy.optimize import curve_fit
 import copy
-from kit204lib.analyze_waveform import take_rolling_average
 
+def gauss(x, A, center, sigma, floor):
+    return A * np.exp(-(x - center) ** 2 / (2 * sigma ** 2)) + floor
 
 class Spectrum:
     def __init__(self, counts):
@@ -15,6 +17,8 @@ class Spectrum:
         self.channels = np.arange(1, self.num_channels+1)
         self.energies = self.channels
         self.peaks = []
+        self.peak_channels = np.array(0.0)
+        self.peak_energies = np.array(0.0)
         self.calibrated = False
         self.calibration_coeffs = [1.0]
         self.calibration_channels = []
@@ -44,8 +48,7 @@ class Spectrum:
         output_file("{0}.html".format(title))
         if len(self.peaks) > 0 and show_peaks:
             for peak in self.peaks:
-                p.quad(top=self.counts[peak.centroid], bottom=self.counts[peak.left], left=x[peak.left], right=x[peak.right],
-                       fill_color="#00FF00")
+                p.line(peak.energies, peak.fit, line_color="#00FF00", line_width=2)
         show(p)
 
     def __add__(self, other):
@@ -58,18 +61,46 @@ class Spectrum:
         new.counts -= other.counts
         return new
 
-    def find_peaks(self, auto_prominence, num_peaks, starting_channel, peak_min_distance=20):
-        self.peaks = []
+    def find_peaks(self, auto_prominence, num_peaks, starting_channel=0, peak_min_distance=20):
+        self.peak_channels = []
         peaks, props = sig.find_peaks(self.counts, prominence = auto_prominence, distance = peak_min_distance)
-        peaks = peaks[np.where(peaks>starting_channel)]
-        widths, width_heights, left_ips, right_ips = sig.peak_widths(self.counts, peaks, rel_height=0.5)
-        for i in range(len(peaks)):
-            centroid = peaks[i]
-            left_th = int(left_ips[i])
-            right_th = int(right_ips[i])
-            width = widths[i]
-            self.peaks += [Peak(centroid, int(self.counts[centroid]), left_th, right_th)]
-        return self.peaks
+        self.peak_channels = np.array(peaks)
+        return self.peak_channels
+
+    def fit_peaks(self, fit_width=6, do_plot=False):
+        num_peaks = len(self.peak_energies)
+        self.peaks = [None]*num_peaks
+        peak_energies = np.zeros(num_peaks)
+        peak_fwhms = np.zeros(num_peaks)
+        for i in range(num_peaks):
+            peak_energy = self.peak_energies[i]
+            subset = np.argwhere(np.abs(self.energies - peak_energy) < fit_width)[:,0]
+            energy_set = self.energies[subset]
+            peak_counts = self.counts[subset]
+            center0 = peak_energy
+
+            A0 = np.max(peak_counts)
+            sigma0 = 3.0
+            floor0 = np.mean(peak_counts[0:3])
+            parameters, covariance = curve_fit(gauss, energy_set, peak_counts, p0=(A0, center0, sigma0, floor0))
+            A, x0, sigma, floor = parameters
+            x_vals = np.linspace(energy_set[0], energy_set[-1], np.int(fit_width)*150)
+            gaussian_fit = gauss(x_vals, A, x0, sigma, floor)
+            height = np.max(gaussian_fit) - floor
+            fwhm_height = height + floor
+            half_height = fwhm_height / 2 + floor
+            idx = np.argwhere(np.diff(np.sign(gaussian_fit - half_height))).flatten()
+            fwhm = x_vals[idx[1]] - x_vals[idx[0]]
+            if do_plot:
+                plt.figure()
+                plt.plot(energy_set, peak_counts)
+                plt.plot(x_vals, gaussian_fit)
+                plt.plot(x_vals[idx], gaussian_fit[idx], 'r-')
+                plt.show()
+            self.peaks[i] = Peak(peak_energy, x_vals, gaussian_fit, parameters, fwhm)
+            peak_energies[i] = peak_energy
+            peak_fwhms[i] = fwhm
+        return peak_energies, peak_fwhms
 
     def calibrate(self, gamma_energies, starting_channel=0, known_channels = [], auto_calibrate = False, reset_calibration = False,
                   auto_prominence = 100, show_fit = False):
@@ -77,13 +108,13 @@ class Spectrum:
             self.calibration_energies = []
             self.calibration_channels = []
         if auto_calibrate:
-            self.find_peaks(auto_prominence, len(gamma_energies), starting_channel)
-            while len(self.peaks) < len(gamma_energies):
+            peak_channels = self.find_peaks(auto_prominence, len(gamma_energies), starting_channel)
+            while len(self.peak_channels) < len(gamma_energies):
                 auto_prominence -= 10
-                self.find_peaks(auto_prominence, len(gamma_energies), starting_channel)
-            print(self.peaks)
+                peak_channels = self.find_peaks(auto_prominence, len(gamma_energies), starting_channel)
+            print("Identified peaks in channels: {0}".format(peak_channels))
             for i in range(len( gamma_energies ) ):
-                self.calibration_channels += [self.peaks[i].centroid]
+                self.calibration_channels += [peak_channels[i]]
                 self.calibration_energies += [gamma_energies[i]]
         elif len(known_channels) > 0:
             for i in range(len( gamma_energies ) ):
@@ -99,6 +130,9 @@ class Spectrum:
                 self.calibration_channels += [int(input(prompt))]
         coefficients = np.polyfit(self.calibration_channels, self.calibration_energies, 2)
         self.energies = np.polyval(coefficients, self.channels)
+        self.peak_energies = np.polyval(coefficients, self.peak_channels)
+        self.calibrated = True
+        self.calibration_coeffs = coefficients
         calibration_func = "Energy(c) = {0}c^2 + {1}c + {2}".format( *np.round(coefficients,4) )
         print(calibration_func)
         if show_fit:
@@ -108,41 +142,24 @@ class Spectrum:
             plt.xlabel("Channel")
             plt.ylabel("Energy (keV)")
             plt.show()
-        self.calibrated = True
-        self.calibration_coeffs = coefficients
         return coefficients
-
-    def calc_FWHMs(self):
-        peak_energies = []
-        peak_fwhm_vals = []
-        for peak in self.peaks:
-            peak_energy, peak_fwhm = peak.get_FWHM(self.calibration_coeffs)
-            peak_energies += [peak_energy]
-            peak_fwhm_vals += [peak_fwhm]
-        return (peak_energies, peak_fwhm_vals)
 
 
 class Peak:
-    def __init__(self, centroid, value, left, right):
+    def __init__(self, centroid, energies, gaussian_fit, fit_parameters, fwhm):
         self.centroid = centroid
-        self.value = value
-        self.left = left
-        self.right = right
+        self.energies = energies
+        self.fit = gaussian_fit
+        self.A = fit_parameters[0]
+        self.x0 = fit_parameters[1]
+        self.sigma = fit_parameters[2]
+        self.floor = fit_parameters[3]
+        self.fwhm = fwhm
 
     def __repr__(self):
-        return "{0} count peak at {1} between {2} and {3}".format(
-            self.value, self.centroid, self.left, self.right)
-
-    def get_FWHM(self, coefficients):
-        left_energy = np.polyval(coefficients, self.left)
-        right_energy = np.polyval(coefficients, self.right)
-        self.FWHM = right_energy-left_energy
-        return (self.centroid, self.FWHM)
+        return "{0} peak keV with {1} keV FWHM".format(
+            self.centroid, self.fwhm)
 
 
 
-class Source:
-    def __init__(self, activity, energies, intensities):
-        self.activity = activity
-        self.energies = energies
-        self.intensities = intensities
+
