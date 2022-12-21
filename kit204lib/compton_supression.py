@@ -1,7 +1,7 @@
 import numpy as np
 
 
-def r59(waveform, pre_sample_length=1000, rise_width=200, baseline_sample_width = 30):
+def calc_r59(waveform, pre_sample_length=1000, rise_width=400, baseline_sample_width = 50):
     time = np.arange(int(pre_sample_length-rise_width), int(pre_sample_length+rise_width))
     waveform_rise = waveform[time]
     baseline = np.mean(waveform[0:baseline_sample_width])
@@ -14,9 +14,10 @@ def r59(waveform, pre_sample_length=1000, rise_width=200, baseline_sample_width 
     t_10 = np.interp(amplitude_10, waveform_rise, time)-time[0]
     t_50 = np.interp(amplitude_50, waveform_rise, time)-time[0]
     t_90 = np.interp(amplitude_90, waveform_rise, time)-time[0]
-    r_15 = t_50-t_10
-    r_19 = t_90-t_10
-    r_59 = t_90-t_50
-    R59 = r_15/r_19
+    t_10_to_50 = t_50-t_10
+    t_10_to_90 = t_90-t_10
+    t_50_to_90 = t_90-t_50
+    r59 = t_10_to_50/t_10_to_90
     intersections = ((t_10, amplitude_10), (t_50, amplitude_50), (t_90, amplitude_90))
-    return R59, r_15, r_59, intersections, waveform_rise
+    return r59, t_10_to_50, t_10_to_90, t_50_to_90, intersections, waveform_rise
+
