@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 
 
 def make_histogram(trapezoid_heights, num_bins, upper_noise_cutoff=0.995, do_plot=False,
-                   log_plot = True):
+                   log_plot = True, show=True):
     spectrum_start = np.min(trapezoid_heights)
     spectrum_end = np.quantile(trapezoid_heights, upper_noise_cutoff)
 
@@ -19,5 +19,6 @@ def make_histogram(trapezoid_heights, num_bins, upper_noise_cutoff=0.995, do_plo
         plt.ylabel("Counts")
         if log_plot:
             plt.yscale("log")
-        plt.show()
+        if show:
+            plt.show()
     return counts, amplitude_bins
