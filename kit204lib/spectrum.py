@@ -91,13 +91,14 @@ class Spectrum:
             half_height = fwhm_height / 2 + floor
             idx = np.argwhere(np.diff(np.sign(gaussian_fit - half_height))).flatten()
             fwhm = x_vals[idx[1]] - x_vals[idx[0]]
+            counts = sum(peak_counts - floor)
             if do_plot:
                 plt.figure()
                 plt.plot(energy_set, peak_counts)
                 plt.plot(x_vals, gaussian_fit)
                 plt.plot(x_vals[idx], gaussian_fit[idx], 'r-')
                 plt.show()
-            self.peaks[i] = Peak(peak_energy, x_vals, gaussian_fit, parameters, fwhm)
+            self.peaks[i] = Peak(peak_energy, x_vals, gaussian_fit, parameters, fwhm, counts)
             peak_energies[i] = peak_energy
             peak_fwhms[i] = fwhm
         return peak_energies, peak_fwhms
@@ -146,7 +147,7 @@ class Spectrum:
 
 
 class Peak:
-    def __init__(self, centroid, energies, gaussian_fit, fit_parameters, fwhm):
+    def __init__(self, centroid, energies, gaussian_fit, fit_parameters, fwhm, counts):
         self.centroid = centroid
         self.energies = energies
         self.fit = gaussian_fit
@@ -155,6 +156,8 @@ class Peak:
         self.sigma = fit_parameters[2]
         self.floor = fit_parameters[3]
         self.fwhm = fwhm
+        self.counts = counts
+
 
     def __repr__(self):
         return "{0} peak keV with {1} keV FWHM".format(
